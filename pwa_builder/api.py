@@ -2,8 +2,10 @@ import frappe
 import json
 import requests
 import os
+import copy
 from urllib.parse import urlparse
 from frappe import ValidationError, _, qb, scrub, throw
+from frappe.desk.form.load import getdoctype
 from pwa_builder.rename_template_app import rename_template_app
 from frappe.model.meta import Meta
 
@@ -51,28 +53,25 @@ def add_site(data, update=False):
 def get_meta(doctype, project,with_parent=False,cached=True) -> "Meta":
 	doc = frappe.get_doc("PWA-Project", project)
 	url = urlparse(doc.site_url)
-	site_url = url.scheme + "://" + url.netloc
-	end_point = "/api/method/frappe.desk.form.load.getdoctype?doctype={0}&with_parent=1".format(doctype)
-
-	response = call(site_url, end_point, doc.user_id, doc.get_password("password"), doc.project_title)
-	if response.ok:
-		meta = response.json()
-		if with_parent == True:
-			return meta
-		else:
-			for doc in meta["docs"]:
-				if doc["name"] == doctype:
-					return doc
+	# site_url = url.scheme + "://" + url.netloc
+	# end_point = "/api/method/frappe.desk.form.load.getdoctype?doctype={0}&with_parent=1".format(doctype)
+	getdoctype(doctype=doctype, with_parent=with_parent)
+	response = copy.copy(frappe.response)
+	del frappe.response.docs
+	if with_parent == True:
+		return response
 	else:
-		response.raise_for_status()
+		for doc in response["docs"]:
+			if doc.get("name") == doctype:
+				return doc
 
-def call(url, end_point, username, password, project, force=False, count=1):
-	cookies = get_cookies(url, username, password, project, force=force)
-	response = requests.get(url+end_point, cookies=cookies)
-	if response.status_code == 403 and count <= 3:
-		response = call(url, end_point, username, password, project, force=True, count=count+1)
+# def call(doctype, url, end_point, username, password, project, force=False, count=1):
+# 	cookies = get_cookies(url, username, password, project, force=force)
+# 	response = requests.get(url+end_point, cookies=cookies)
+# 	if response.status_code == 403 and count <= 3:
+# 		response = call(url, end_point, username, password, project, force=True, count=count+1)
 
-	return response
+# 	return response
 
 
 def get_cookies(url, username, password, project,  force=False):
